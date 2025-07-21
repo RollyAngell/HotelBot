@@ -133,3 +133,7 @@ credentials/*.json
 *.log
 .DS_Store
 Thumbs.db hotel_bot_env/
+hotel_bot_env/
+__pycache__/
+*.pyc
+.env
