@@ -1,10 +1,8 @@
 import logging
-import asyncio
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
-from telegram.constants import ParseMode
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
 
 from config import Config
 from utils.ocr_processor import OCRProcessor
@@ -35,12 +33,12 @@ class HotelBot:
         """Verificar si el usuario está autorizado"""
         return user_id in Config.AUTHORIZED_USERS
     
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def start(self, update: Update, context: CallbackContext):
         """Comando /start"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text(
+            update.message.reply_text(
                 "❌ No tienes autorización para usar este bot.\n"
                 "Contacta al administrador del sistema."
             )
@@ -49,6 +47,10 @@ class HotelBot:
         welcome_message = (
             "🏨 *Bot de Registro de Clientes*\n\n"
             "¡Hola! Soy el bot del hotel para registrar clientes.\n\n"
+            "✨ *Nuevas mejoras:*\n"
+            "• Procesamiento avanzado de imágenes de DNI\n"
+            "• Funciona con fotos desde cualquier ángulo\n"
+            "• Reconocimiento mejorado de texto\n\n"
             "Comandos disponibles:\n"
             "• /nuevo - Registrar nuevo cliente\n"
             "• /resumen - Ver resumen del día\n"
@@ -57,14 +59,14 @@ class HotelBot:
             "Para comenzar, envía una foto del DNI del cliente o usa /nuevo"
         )
         
-        await update.message.reply_text(welcome_message, parse_mode=ParseMode.MARKDOWN)
+        update.message.reply_text(welcome_message, parse_mode=ParseMode.MARKDOWN)
     
-    async def nuevo_cliente(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def nuevo_cliente(self, update: Update, context: CallbackContext):
         """Comando /nuevo para iniciar registro"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text("❌ No tienes autorización para usar este bot.")
+            update.message.reply_text("❌ No tienes autorización para usar este bot.")
             return
         
         # Inicializar estado del usuario
@@ -75,42 +77,51 @@ class HotelBot:
             'registrado_por': update.effective_user.first_name or "Usuario"
         }
         
-        await update.message.reply_text(
+        update.message.reply_text(
             "📷 *Nuevo Cliente*\n\n"
-            "Por favor, envía una foto del DNI del cliente para comenzar el registro.\n"
-            "Asegúrate de que la imagen sea clara y legible.",
+            "Por favor, envía una foto del DNI del cliente para comenzar el registro.\n\n"
+            "✅ *Consejos para mejores resultados:*\n"
+            "• La foto puede ser tomada desde cualquier ángulo\n"
+            "• No importa si está ligeramente inclinada\n"
+            "• Asegúrate de que el texto sea visible\n"
+            "• El bot automáticamente mejorará la imagen\n"
+            "• Si la primera foto no funciona, puedes intentar con otra",
             parse_mode=ParseMode.MARKDOWN
         )
     
-    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def handle_photo(self, update: Update, context: CallbackContext):
         """Manejar fotos enviadas"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text("❌ No tienes autorización para usar este bot.")
+            update.message.reply_text("❌ No tienes autorización para usar este bot.")
             return
         
         # Verificar si estamos esperando foto de DNI
         if self.user_states.get(user_id) != 'waiting_dni_photo':
-            await update.message.reply_text(
+            update.message.reply_text(
                 "❓ No estoy esperando una foto en este momento.\n"
                 "Usa /nuevo para comenzar un nuevo registro."
             )
             return
         
         # Mostrar mensaje de procesamiento
-        processing_msg = await update.message.reply_text(
-            "⏳ Procesando imagen del DNI...\n"
-            "Esto puede tomar unos segundos."
+        processing_msg = update.message.reply_text(
+            "⏳ *Procesando imagen del DNI...*\n\n"
+            "🔍 Analizando imagen con IA avanzada\n"
+            "🖼️ Mejorando calidad automáticamente\n"
+            "📝 Extrayendo datos del documento\n\n"
+            "Esto puede tomar unos segundos.",
+            parse_mode=ParseMode.MARKDOWN
         )
         
         try:
             # Obtener la imagen
             photo = update.message.photo[-1]  # Mejor calidad
-            file = await context.bot.get_file(photo.file_id)
+            file = context.bot.get_file(photo.file_id)
             
             # Descargar imagen
-            image_bytes = await file.download_as_bytearray()
+            image_bytes = file.download_as_bytearray()
             
             # Redimensionar si es necesario
             image_bytes = self.ocr_processor.resize_image_if_needed(bytes(image_bytes))
@@ -134,19 +145,31 @@ class HotelBot:
                 self.client_data[user_id]['foto_url'] = drive_result['web_view_link']
             
             # Eliminar mensaje de procesamiento
-            await processing_msg.delete()
+            context.bot.delete_message(chat_id=processing_msg.chat.id, message_id=processing_msg.message_id)
+            
+            # Verificar calidad de extracción y mostrar mensaje apropiado
+            extracted_fields = sum(1 for field in ['nombre', 'dni', 'fecha_nacimiento', 'nacionalidad'] 
+                                 if dni_data.get(field))
+            
+            if extracted_fields >= 3:
+                update.message.reply_text("✅ *¡Excelente!* Datos extraídos correctamente", parse_mode=ParseMode.MARKDOWN)
+            elif extracted_fields >= 2:
+                update.message.reply_text("✅ *¡Bien!* La mayoría de datos fueron extraídos", parse_mode=ParseMode.MARKDOWN)
+            else:
+                update.message.reply_text("⚠️ *Extracción parcial* - Algunos datos pueden necesitar corrección", parse_mode=ParseMode.MARKDOWN)
             
             # Mostrar datos extraídos
-            await self.show_extracted_data(update, user_id)
+            self.show_extracted_data(update, user_id)
             
         except Exception as e:
             logger.error(f"Error al procesar foto: {str(e)}")
-            await processing_msg.edit_text(
-                "❌ Error al procesar la imagen del DNI.\n"
-                "Por favor, intenta con otra foto más clara."
+            context.bot.edit_message_text(
+                text="❌ Error al procesar la imagen del DNI.\nPor favor, intenta con otra foto más clara.",
+                chat_id=processing_msg.chat.id,
+                message_id=processing_msg.message_id
             )
     
-    async def show_extracted_data(self, update: Update, user_id: int):
+    def show_extracted_data(self, update: Update, user_id: int):
         """Mostrar datos extraídos del DNI"""
         data = self.client_data[user_id]
         
@@ -178,47 +201,54 @@ class HotelBot:
         keyboard = [
             [InlineKeyboardButton("✅ Continuar", callback_data="continue_registration")],
             [InlineKeyboardButton("✏️ Editar datos", callback_data="edit_data")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")],
             [InlineKeyboardButton("❌ Cancelar", callback_data="cancel_registration")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
+        update.message.reply_text(
             message,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def handle_callback(self, update: Update, context: CallbackContext):
         """Manejar callbacks de botones"""
         query = update.callback_query
-        await query.answer()
+        query.answer()
         
         user_id = query.from_user.id
         
         if not self.is_authorized(user_id):
-            await query.edit_message_text("❌ No tienes autorización para usar este bot.")
+            query.edit_message_text("❌ No tienes autorización para usar este bot.")
             return
         
         if query.data == "continue_registration":
-            await self.ask_duration(query, user_id)
+            self.ask_duration(query, user_id)
         elif query.data == "edit_data":
-            await self.edit_data_menu(query, user_id)
+            self.edit_data_menu(query, user_id)
         elif query.data == "cancel_registration":
-            await self.cancel_registration(query, user_id)
+            self.cancel_registration(query, user_id)
+        elif query.data == "restart_registration":
+            self.restart_registration(query, user_id)
         elif query.data.startswith("duration_"):
-            await self.handle_duration_selection(query, user_id)
+            self.handle_duration_selection(query, user_id)
         elif query.data.startswith("price_"):
-            await self.handle_price_selection(query, user_id)
+            self.handle_price_selection(query, user_id)
         elif query.data.startswith("payment_"):
-            await self.handle_payment_selection(query, user_id)
+            self.handle_payment_selection(query, user_id)
         elif query.data.startswith("room_"):
-            await self.handle_room_selection(query, user_id)
+            self.handle_room_selection(query, user_id)
         elif query.data == "confirm_registration":
-            await self.confirm_registration(query, user_id)
+            self.confirm_registration(query, user_id)
         elif query.data == "edit_observations":
-            await self.ask_observations(query, user_id)
+            self.ask_observations(query, user_id)
+        elif query.data == "add_observation":
+            self.prompt_observation(query, user_id)
+        elif query.data == "no_observations":
+            self.handle_no_observations(query, user_id)
     
-    async def ask_duration(self, query, user_id):
+    def ask_duration(self, query, user_id):
         """Preguntar duración de estancia"""
         self.user_states[user_id] = 'selecting_duration'
         
@@ -226,16 +256,17 @@ class HotelBot:
         for duration in Config.DURACION_OPCIONES:
             keyboard.append([InlineKeyboardButton(duration, callback_data=f"duration_{duration}")])
         
+        keyboard.append([InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "⏰ *¿Cuántas horas usará el cliente?*\n\n"
             "Selecciona la duración de la estancia:",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def handle_duration_selection(self, query, user_id):
+    def handle_duration_selection(self, query, user_id):
         """Manejar selección de duración"""
         duration = query.data.replace("duration_", "")
         self.client_data[user_id]['duracion'] = duration
@@ -253,9 +284,9 @@ class HotelBot:
         
         self.client_data[user_id]['hora_salida_estimada'] = exit_time.strftime('%H:%M')
         
-        await self.ask_price(query, user_id)
+        self.ask_price(query, user_id)
     
-    async def ask_price(self, query, user_id):
+    def ask_price(self, query, user_id):
         """Preguntar precio cobrado"""
         self.user_states[user_id] = 'selecting_price'
         
@@ -265,21 +296,22 @@ class HotelBot:
         
         # Opción de precio personalizado
         keyboard.append([InlineKeyboardButton("💰 Precio personalizado", callback_data="price_custom")])
+        keyboard.append([InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "💰 *¿Precio cobrado?*\n\n"
             "Selecciona el precio cobrado al cliente:",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def handle_price_selection(self, query, user_id):
+    def handle_price_selection(self, query, user_id):
         """Manejar selección de precio"""
         if query.data == "price_custom":
             self.user_states[user_id] = 'waiting_custom_price'
-            await query.edit_message_text(
+            query.edit_message_text(
                 "💰 *Precio personalizado*\n\n"
                 "Escribe el precio cobrado (ejemplo: S/35, $20, etc.):"
             )
@@ -288,9 +320,9 @@ class HotelBot:
         price = query.data.replace("price_", "")
         self.client_data[user_id]['precio'] = price
         
-        await self.ask_payment_method(query, user_id)
+        self.ask_payment_method(query, user_id)
     
-    async def ask_payment_method(self, query, user_id):
+    def ask_payment_method(self, query, user_id):
         """Preguntar forma de pago"""
         self.user_states[user_id] = 'selecting_payment'
         
@@ -298,45 +330,60 @@ class HotelBot:
         for payment in Config.PAGO_OPCIONES:
             keyboard.append([InlineKeyboardButton(payment, callback_data=f"payment_{payment}")])
         
+        keyboard.append([InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "💳 *¿Forma de pago?*\n\n"
             "Selecciona la forma de pago utilizada:",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def handle_payment_selection(self, query, user_id):
+    def handle_payment_selection(self, query, user_id):
         """Manejar selección de forma de pago"""
         payment = query.data.replace("payment_", "")
         self.client_data[user_id]['forma_pago'] = payment
         
-        await self.ask_room(query, user_id)
+        self.ask_room(query, user_id)
     
-    async def ask_room(self, query, user_id):
+    def ask_room(self, query, user_id):
         """Preguntar habitación"""
         self.user_states[user_id] = 'selecting_room'
         
         # Obtener disponibilidad de habitaciones
-        availability = self.sheets_manager.get_room_availability()
+        try:
+            availability = self.sheets_manager.get_room_availability()
+        except Exception:
+            # Si hay error, usar habitaciones por defecto
+            availability = {'available': ['1','2','3','4','5'], 'occupied': []}
         
         keyboard = []
         
         # Mostrar habitaciones disponibles
-        for room in availability['available']:
-            keyboard.append([InlineKeyboardButton(f"🟢 Habitación {room}", callback_data=f"room_{room}")])
+        if availability['available']:
+            # Convertir a strings y ordenar
+            available_rooms = [str(room) for room in availability['available']]
+            available_rooms.sort(key=lambda x: int(x) if x.isdigit() else float('inf'))
+            
+            for room in available_rooms:
+                keyboard.append([InlineKeyboardButton(f"🟢 Habitación {room}", callback_data=f"room_{room}")])
         
-        # Mostrar habitaciones ocupadas
-        for room in availability['occupied']:
-            keyboard.append([InlineKeyboardButton(f"🔴 Habitación {room} (ocupada)", callback_data=f"room_{room}_occupied")])
+        # Mostrar habitaciones ocupadas solo como información (no seleccionables)
+        if availability['occupied']:
+            occupied_rooms = [str(room) for room in availability['occupied']]
+            occupied_rooms.sort(key=lambda x: int(x) if x.isdigit() else float('inf'))
+            
+            for room in occupied_rooms:
+                keyboard.append([InlineKeyboardButton(f"🔴 Habitación {room} (ocupada)", callback_data=f"room_info_{room}")])
         
         # Opción de habitación personalizada
         keyboard.append([InlineKeyboardButton("🏠 Otra habitación", callback_data="room_custom")])
+        keyboard.append([InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "🏠 *¿Qué habitación usará el cliente?*\n\n"
             "🟢 = Disponible | 🔴 = Ocupada\n\n"
             "Selecciona la habitación:",
@@ -344,47 +391,48 @@ class HotelBot:
             reply_markup=reply_markup
         )
     
-    async def handle_room_selection(self, query, user_id):
+    def handle_room_selection(self, query, user_id):
         """Manejar selección de habitación"""
         if query.data == "room_custom":
             self.user_states[user_id] = 'waiting_custom_room'
-            await query.edit_message_text(
+            query.edit_message_text(
                 "🏠 *Habitación personalizada*\n\n"
                 "Escribe el número o nombre de la habitación:"
             )
             return
-        elif query.data.endswith("_occupied"):
-            await query.answer("⚠️ Esta habitación está ocupada", show_alert=True)
+        elif query.data.startswith("room_info_"):
+            query.answer("⚠️ Esta habitación está ocupada", show_alert=True)
             return
         
         room = query.data.replace("room_", "")
         self.client_data[user_id]['habitacion'] = room
         
-        await self.ask_observations(query, user_id)
+        self.ask_observations(query, user_id)
     
-    async def ask_observations(self, query, user_id):
+    def ask_observations(self, query, user_id):
         """Preguntar observaciones"""
         self.user_states[user_id] = 'waiting_observations'
         
         keyboard = [
             [InlineKeyboardButton("📝 Agregar observación", callback_data="add_observation")],
-            [InlineKeyboardButton("➡️ Continuar sin observaciones", callback_data="no_observations")]
+            [InlineKeyboardButton("➡️ Continuar sin observaciones", callback_data="no_observations")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "📝 *¿Alguna observación?*\n\n"
             "Puedes agregar comentarios adicionales sobre el cliente o la reserva:",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def handle_text_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def handle_text_input(self, update: Update, context: CallbackContext):
         """Manejar entradas de texto"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text("❌ No tienes autorización para usar este bot.")
+            update.message.reply_text("❌ No tienes autorización para usar este bot.")
             return
         
         state = self.user_states.get(user_id)
@@ -392,18 +440,54 @@ class HotelBot:
         if state == 'waiting_custom_price':
             self.client_data[user_id]['precio'] = update.message.text
             self.user_states[user_id] = 'selecting_payment'
-            await self.ask_payment_method_after_custom_price(update, user_id)
+            self.ask_payment_method_after_custom_price(update, user_id)
         
         elif state == 'waiting_custom_room':
             self.client_data[user_id]['habitacion'] = update.message.text
             self.user_states[user_id] = 'waiting_observations'
-            await self.ask_observations_after_custom_room(update, user_id)
+            self.ask_observations_after_custom_room(update, user_id)
         
         elif state == 'waiting_observations':
             self.client_data[user_id]['observaciones'] = update.message.text
-            await self.show_final_summary(update, user_id)
+            self.show_final_summary(update, user_id)
     
-    async def show_final_summary(self, update: Update, user_id: int):
+    def ask_payment_method_after_custom_price(self, update: Update, user_id: int):
+        """Preguntar forma de pago después de precio personalizado"""
+        self.user_states[user_id] = 'selecting_payment'
+        
+        keyboard = []
+        for payment in Config.PAGO_OPCIONES:
+            keyboard.append([InlineKeyboardButton(payment, callback_data=f"payment_{payment}")])
+        
+        keyboard.append([InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        update.message.reply_text(
+            "💳 *¿Forma de pago?*\n\n"
+            "Selecciona la forma de pago utilizada:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup
+        )
+    
+    def ask_observations_after_custom_room(self, update: Update, user_id: int):
+        """Preguntar observaciones después de habitación personalizada"""
+        self.user_states[user_id] = 'waiting_observations'
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 Agregar observación", callback_data="add_observation")],
+            [InlineKeyboardButton("➡️ Continuar sin observaciones", callback_data="no_observations")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        update.message.reply_text(
+            "📝 *¿Alguna observación?*\n\n"
+            "Puedes agregar comentarios adicionales sobre el cliente o la reserva:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup
+        )
+    
+    def show_final_summary(self, update: Update, user_id: int):
         """Mostrar resumen final antes de guardar"""
         data = self.client_data[user_id]
         
@@ -420,24 +504,99 @@ class HotelBot:
         keyboard = [
             [InlineKeyboardButton("✅ Confirmar y Guardar", callback_data="confirm_registration")],
             [InlineKeyboardButton("✏️ Editar", callback_data="edit_data")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")],
             [InlineKeyboardButton("❌ Cancelar", callback_data="cancel_registration")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
+        update.message.reply_text(
             message,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
     
-    async def confirm_registration(self, query, user_id):
+    def prompt_observation(self, query, user_id):
+        """Solicitar que escriba una observación"""
+        self.user_states[user_id] = 'waiting_observations'
+        
+        query.edit_message_text(
+            "📝 *Agregar observación*\n\n"
+            "Escribe tu observación sobre el cliente o la reserva:"
+        )
+    
+    def handle_no_observations(self, query, user_id):
+        """Continuar sin observaciones"""
+        self.client_data[user_id]['observaciones'] = ''
+        self.show_final_summary_from_query(query, user_id)
+    
+    def show_final_summary_from_query(self, query, user_id):
+        """Mostrar resumen final desde callback query"""
+        data = self.client_data[user_id]
+        
+        message = "📋 *Resumen del Registro*\n\n"
+        message += f"👤 **Cliente:** {data.get('nombre', 'N/A')}\n"
+        message += f"🆔 **DNI:** {data.get('dni', 'N/A')}\n"
+        message += f"🏠 **Habitación:** {data.get('habitacion', 'N/A')}\n"
+        message += f"🕐 **Ingreso:** {data.get('hora_ingreso', 'N/A')}\n"
+        message += f"🕐 **Salida estimada:** {data.get('hora_salida_estimada', 'N/A')}\n"
+        message += f"💰 **Precio:** {data.get('precio', 'N/A')}\n"
+        message += f"💳 **Pago:** {data.get('forma_pago', 'N/A')}\n"
+        message += f"📝 **Observaciones:** {data.get('observaciones', 'Ninguna')}\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Confirmar y Guardar", callback_data="confirm_registration")],
+            [InlineKeyboardButton("✏️ Editar", callback_data="edit_data")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")],
+            [InlineKeyboardButton("❌ Cancelar", callback_data="cancel_registration")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        query.edit_message_text(
+            message,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup
+        )
+    
+    def edit_data_menu(self, query, user_id):
+        """Mostrar menú para editar datos"""
+        keyboard = [
+            [InlineKeyboardButton("👤 Editar nombre", callback_data="edit_name")],
+            [InlineKeyboardButton("🆔 Editar DNI", callback_data="edit_dni")],
+            [InlineKeyboardButton("📅 Editar fecha nacimiento", callback_data="edit_birthdate")],
+            [InlineKeyboardButton("🌍 Editar nacionalidad", callback_data="edit_nationality")],
+            [InlineKeyboardButton("✅ Continuar registro", callback_data="continue_registration")],
+            [InlineKeyboardButton("🔄 Reiniciar", callback_data="restart_registration")],
+            [InlineKeyboardButton("❌ Cancelar", callback_data="cancel_registration")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        query.edit_message_text(
+            "✏️ *Editar datos*\n\n"
+            "¿Qué dato deseas editar?",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup
+        )
+    
+    def restart_registration(self, query, user_id):
+        """Reiniciar el proceso de registro"""
+        self.user_states.pop(user_id, None)
+        self.client_data.pop(user_id, None)
+        
+        query.edit_message_text(
+            "🔄 *Proceso reiniciado*\n\n"
+            "El registro ha sido reiniciado.\n"
+            "Usa /nuevo para comenzar un nuevo registro o envía una foto del DNI.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    
+    def confirm_registration(self, query, user_id):
         """Confirmar y guardar registro"""
         try:
             # Guardar en Google Sheets
             success = self.sheets_manager.save_client_data(self.client_data[user_id])
             
             if success:
-                await query.edit_message_text(
+                query.edit_message_text(
                     "✅ *Registro exitoso*\n\n"
                     "El cliente ha sido registrado correctamente.\n"
                     "Los datos se han guardado en Google Sheets y la foto en Google Drive.\n\n"
@@ -450,7 +609,7 @@ class HotelBot:
                 self.client_data.pop(user_id, None)
                 
             else:
-                await query.edit_message_text(
+                query.edit_message_text(
                     "❌ *Error al guardar*\n\n"
                     "Hubo un problema al guardar los datos.\n"
                     "Por favor, intenta nuevamente."
@@ -458,28 +617,28 @@ class HotelBot:
                 
         except Exception as e:
             logger.error(f"Error al confirmar registro: {str(e)}")
-            await query.edit_message_text(
+            query.edit_message_text(
                 "❌ *Error del sistema*\n\n"
                 "Ocurrió un error inesperado. Contacta al administrador."
             )
     
-    async def cancel_registration(self, query, user_id):
+    def cancel_registration(self, query, user_id):
         """Cancelar registro"""
         self.user_states.pop(user_id, None)
         self.client_data.pop(user_id, None)
         
-        await query.edit_message_text(
+        query.edit_message_text(
             "❌ *Registro cancelado*\n\n"
             "El registro ha sido cancelado.\n"
             "Usa /nuevo para comenzar un nuevo registro."
         )
     
-    async def resumen_diario(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def resumen_diario(self, update: Update, context: CallbackContext):
         """Comando /resumen - mostrar resumen del día"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text("❌ No tienes autorización para usar este bot.")
+            update.message.reply_text("❌ No tienes autorización para usar este bot.")
             return
         
         try:
@@ -494,18 +653,18 @@ class HotelBot:
                 for record in summary['records'][-5:]:  # Últimos 5 registros
                     message += f"• {record.get('Nombre', 'N/A')} - Hab. {record.get('Habitación', 'N/A')}\n"
             
-            await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+            update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
             
         except Exception as e:
             logger.error(f"Error al obtener resumen: {str(e)}")
-            await update.message.reply_text("❌ Error al obtener el resumen diario.")
+            update.message.reply_text("❌ Error al obtener el resumen diario.")
     
-    async def ver_habitaciones(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def ver_habitaciones(self, update: Update, context: CallbackContext):
         """Comando /habitaciones - ver disponibilidad"""
         user_id = update.effective_user.id
         
         if not self.is_authorized(user_id):
-            await update.message.reply_text("❌ No tienes autorización para usar este bot.")
+            update.message.reply_text("❌ No tienes autorización para usar este bot.")
             return
         
         try:
@@ -529,13 +688,13 @@ class HotelBot:
             else:
                 message += "🔴 **Ocupadas:** Ninguna\n"
             
-            await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+            update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
             
         except Exception as e:
             logger.error(f"Error al obtener disponibilidad: {str(e)}")
-            await update.message.reply_text("❌ Error al obtener la disponibilidad.")
+            update.message.reply_text("❌ Error al obtener la disponibilidad.")
     
-    async def ayuda(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def ayuda(self, update: Update, context: CallbackContext):
         """Comando /ayuda"""
         help_message = (
             "🆘 *Ayuda - Bot de Registro de Clientes*\n\n"
@@ -550,11 +709,16 @@ class HotelBot:
             "2. El bot extraerá los datos automáticamente\n"
             "3. Completa la información solicitada\n"
             "4. Confirma el registro\n\n"
+            "**Sobre las fotos de DNI:**\n"
+            "• Funciona con fotos desde cualquier ángulo\n"
+            "• El bot mejora automáticamente la calidad\n"
+            "• Reconoce DNI peruanos, venezolanos y otros\n"
+            "• Si una foto no funciona, intenta con otra\n\n"
             "**Soporte:**\n"
             "Si tienes problemas, contacta al administrador."
         )
         
-        await update.message.reply_text(help_message, parse_mode=ParseMode.MARKDOWN)
+        update.message.reply_text(help_message, parse_mode=ParseMode.MARKDOWN)
     
     def run(self):
         """Ejecutar el bot"""
@@ -562,23 +726,25 @@ class HotelBot:
             # Validar configuración
             Config.validate_config()
             
-            # Crear aplicación
-            application = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+            # Crear updater
+            updater = Updater(Config.TELEGRAM_BOT_TOKEN, use_context=True)
+            dispatcher = updater.dispatcher
             
             # Agregar manejadores
-            application.add_handler(CommandHandler("start", self.start))
-            application.add_handler(CommandHandler("nuevo", self.nuevo_cliente))
-            application.add_handler(CommandHandler("resumen", self.resumen_diario))
-            application.add_handler(CommandHandler("habitaciones", self.ver_habitaciones))
-            application.add_handler(CommandHandler("ayuda", self.ayuda))
+            dispatcher.add_handler(CommandHandler("start", self.start))
+            dispatcher.add_handler(CommandHandler("nuevo", self.nuevo_cliente))
+            dispatcher.add_handler(CommandHandler("resumen", self.resumen_diario))
+            dispatcher.add_handler(CommandHandler("habitaciones", self.ver_habitaciones))
+            dispatcher.add_handler(CommandHandler("ayuda", self.ayuda))
             
-            application.add_handler(MessageHandler(filters.PHOTO, self.handle_photo))
-            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_input))
-            application.add_handler(CallbackQueryHandler(self.handle_callback))
+            dispatcher.add_handler(MessageHandler(Filters.photo, self.handle_photo))
+            dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, self.handle_text_input))
+            dispatcher.add_handler(CallbackQueryHandler(self.handle_callback))
             
             # Iniciar bot
             logger.info("Bot iniciado exitosamente")
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
+            updater.start_polling()
+            updater.idle()
             
         except Exception as e:
             logger.error(f"Error al iniciar bot: {str(e)}")

@@ -1,34 +1,77 @@
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from datetime import datetime
 import io
 import logging
+from pathlib import Path
 from config import Config
 
 logger = logging.getLogger(__name__)
 
 class DriveManager:
-    """Manejador para Google Drive"""
+    """Manejador para Google Drive usando OAuth authentication"""
+    
+    # Google Drive API scopes
+    SCOPES = [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive'
+    ]
     
     def __init__(self):
         self.service = None
+        self.credentials_file = Path(Config.GOOGLE_OAUTH_CREDENTIALS)
+        self.token_file = Path("credentials/token.json")  # Token para OAuth
         self._authenticate()
     
     def _authenticate(self):
-        """Autenticación con Google Drive"""
+        """Autenticación con Google Drive usando OAuth"""
         try:
-            # Definir el alcance
-            scope = [
-                "https://www.googleapis.com/auth/drive.file",
-                "https://www.googleapis.com/auth/drive"
-            ]
+            creds = None
             
-            # Autenticar usando el archivo de credenciales
-            creds = Credentials.from_service_account_file(
-                Config.GOOGLE_APPLICATION_CREDENTIALS, 
-                scopes=scope
-            )
+            # Load existing token
+            if self.token_file.exists():
+                try:
+                    creds = Credentials.from_authorized_user_file(str(self.token_file), self.SCOPES)
+                except Exception as e:
+                    logger.warning(f"No se pudo cargar token existente: {e}")
+            
+            # If no valid credentials, authenticate
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    try:
+                        creds.refresh(Request())
+                        logger.info("Token de Google Drive renovado exitosamente")
+                    except Exception as e:
+                        logger.warning(f"No se pudo renovar token: {e}")
+                        creds = None
+                
+                if not creds:
+                    if not self.credentials_file.exists():
+                        logger.error(f"Archivo de credenciales no encontrado: {self.credentials_file}")
+                        raise FileNotFoundError("Archivo credentials.json no encontrado")
+                    
+                    try:
+                        flow = InstalledAppFlow.from_client_secrets_file(
+                            str(self.credentials_file), self.SCOPES)
+                        creds = flow.run_local_server(port=0)
+                        logger.info("Autenticación OAuth completada exitosamente")
+                    except Exception as e:
+                        logger.error(f"Fallo en autenticación OAuth: {e}")
+                        raise
+                
+                # Save the credentials for next run
+                try:
+                    # Crear directorio credentials si no existe
+                    self.token_file.parent.mkdir(exist_ok=True)
+                    
+                    with open(self.token_file, 'w') as token:
+                        token.write(creds.to_json())
+                    logger.info(f"Token guardado in: {self.token_file}")
+                except Exception as e:
+                    logger.warning(f"No se pudo guardar token: {e}")
             
             # Crear servicio de Google Drive
             self.service = build('drive', 'v3', credentials=creds)

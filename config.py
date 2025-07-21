@@ -17,8 +17,14 @@ class Config:
         if user_id.strip()
     ]
     
-    # Google Cloud
+    # OpenAI
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    
+    # Google Cloud Service Account (para Sheets)
     GOOGLE_APPLICATION_CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    
+    # Google OAuth Credentials (para Drive)
+    GOOGLE_OAUTH_CREDENTIALS = os.getenv('GOOGLE_OAUTH_CREDENTIALS', 'credentials/credentials.json')
     
     # Google Sheets
     GOOGLE_SHEETS_SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
@@ -41,10 +47,13 @@ class Config:
         """Valida que todas las configuraciones necesarias estén presentes"""
         required_vars = [
             'TELEGRAM_BOT_TOKEN',
+            'OPENAI_API_KEY',
             'GOOGLE_APPLICATION_CREDENTIALS',
             'GOOGLE_SHEETS_SPREADSHEET_ID',
             'GOOGLE_DRIVE_FOLDER_ID'
         ]
+        
+        # GOOGLE_OAUTH_CREDENTIALS es opcional, usa default si no está definida
         
         missing_vars = []
         for var in required_vars:

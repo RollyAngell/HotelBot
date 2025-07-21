@@ -467,7 +467,3 @@ Las contribuciones son bienvenidas. Por favor:
 - [ ] Reportes avanzados
 - [ ] App móvil
 - [ ] Integración con POS
-
----
-
-Desarrollado con ❤️ para hoteles modernos 

@@ -7,7 +7,7 @@ Se ha desarrollado exitosamente un **chatbot completo para Telegram** que permit
 ## 🎯 Funcionalidades Implementadas
 
 ### ✅ 1. Captura y Procesamiento de DNI
-- **OCR automático** con Google Cloud Vision API
+- **OCR automático** con OpenAI Vision API (gpt-4o-mini)
 - **Extracción de datos**:
   - Nombre completo
   - Número de DNI
@@ -67,19 +67,20 @@ HotelBot/
 ├── README.md             # Documentación completa
 ├── utils/
 │   ├── __init__.py
-│   ├── ocr_processor.py   # Procesamiento OCR (150 líneas)
+│   ├── ocr_processor.py   # Procesamiento OCR (541 líneas)
 │   ├── sheets_manager.py  # Gestión Google Sheets (213 líneas)
 │   └── drive_manager.py   # Gestión Google Drive (218 líneas)
 └── credentials/
     ├── README.md         # Instrucciones de credenciales
-    └── hotel-bot-credentials.json  # Credenciales (usuario debe agregar)
+    ├── hotel-bot-service-account.json  # Credenciales Google Sheets
+    └── credentials.json  # Credenciales OAuth Google Drive
 ```
 
 ## 🚀 Tecnologías Utilizadas
 
 - **Python 3.8+** - Lenguaje principal
 - **python-telegram-bot** - Bot de Telegram
-- **Google Cloud Vision API** - OCR
+- **OpenAI Vision API** - OCR con modelo gpt-4o-mini
 - **Google Sheets API** - Almacenamiento de datos
 - **Google Drive API** - Backup de fotos
 - **Pillow** - Procesamiento de imágenes
@@ -89,9 +90,9 @@ HotelBot/
 ## 📊 Estadísticas del Proyecto
 
 - **Total de archivos**: 12
-- **Total de líneas de código**: ~1,400
+- **Total de líneas de código**: ~1,800
 - **Módulos principales**: 4
-- **APIs integradas**: 3
+- **APIs integradas**: 3 (OpenAI, Google Sheets, Google Drive)
 - **Comandos del bot**: 5
 - **Funcionalidades completas**: 7
 
@@ -102,22 +103,26 @@ HotelBot/
 TELEGRAM_BOT_TOKEN=tu_token_aqui
 TELEGRAM_ADMIN_CHAT_ID=tu_chat_id
 AUTHORIZED_USERS=user1,user2,user3
-GOOGLE_APPLICATION_CREDENTIALS=credentials/hotel-bot-credentials.json
+OPENAI_API_KEY=sk-proj-tu_api_key_de_openai
+GOOGLE_APPLICATION_CREDENTIALS=credentials/hotel-bot-service-account.json
+GOOGLE_OAUTH_CREDENTIALS=credentials/credentials.json
 GOOGLE_SHEETS_SPREADSHEET_ID=tu_spreadsheet_id
 GOOGLE_SHEETS_WORKSHEET_NAME=Registros
 GOOGLE_DRIVE_FOLDER_ID=tu_folder_id
 TIMEZONE=America/Lima
 ```
 
-### APIs de Google Cloud
-- Google Cloud Vision API (OCR)
-- Google Sheets API (Almacenamiento)
-- Google Drive API (Backup)
+### APIs y Servicios Requeridos
+- **OpenAI API** (OCR con Vision)
+- **Google Sheets API** (Almacenamiento)
+- **Google Drive API** (Backup)
 
-### Permisos Necesarios
-- Cuenta de servicio con permisos de Editor
+### Permisos y Configuración Necesarios
+- **OpenAI API Key** con acceso a Vision API
+- **Service Account** de Google Cloud con permisos de Editor
+- **OAuth Credentials** para Google Drive
 - Hoja de cálculo compartida con la cuenta de servicio
-- Carpeta de Drive compartida con la cuenta de servicio
+- Carpeta de Drive con permisos OAuth
 
 ## 🚀 Cómo Iniciar
 
@@ -132,9 +137,11 @@ TIMEZONE=America/Lima
    # Editar .env con tus datos
    ```
 
-3. **Agregar credenciales**:
-   - Descargar JSON de Google Cloud Console
-   - Guardar como `credentials/hotel-bot-credentials.json`
+3. **Configurar APIs**:
+   - Obtener API Key de OpenAI desde https://platform.openai.com/
+   - Configurar Service Account de Google Cloud para Sheets
+   - Configurar OAuth credentials para Google Drive
+   - Guardar credenciales en carpeta `credentials/`
 
 4. **Ejecutar bot**:
    ```bash
@@ -146,9 +153,9 @@ TIMEZONE=America/Lima
 ```
 📱 Usuario envía foto del DNI
     ↓
-🔍 Google Cloud Vision procesa la imagen
+🔍 OpenAI Vision API procesa la imagen
     ↓
-📝 Bot extrae y valida los datos
+📝 Bot extrae y valida los datos usando gpt-4o-mini
     ↓
 💬 Formulario conversacional guiado
     ↓
@@ -208,7 +215,3 @@ El bot está listo para ser deployado en:
 - Railway
 - VPS
 - Google Cloud Run
-
----
-
-**Desarrollado con ❤️ para hoteles modernos** 

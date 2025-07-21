@@ -13,7 +13,7 @@ def check_dependencies():
     """Verificar que las dependencias estén instaladas"""
     required_modules = [
         'telegram',
-        'google.cloud.vision',
+        'openai',
         'gspread',
         'PIL',
         'dotenv',
@@ -42,6 +42,7 @@ def check_environment():
     """Verificar variables de entorno"""
     required_vars = [
         'TELEGRAM_BOT_TOKEN',
+        'OPENAI_API_KEY',
         'GOOGLE_APPLICATION_CREDENTIALS',
         'GOOGLE_SHEETS_SPREADSHEET_ID',
         'GOOGLE_DRIVE_FOLDER_ID'

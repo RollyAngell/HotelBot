@@ -132,4 +132,4 @@ dmypy.json
 credentials/*.json
 *.log
 .DS_Store
-Thumbs.db 
+Thumbs.db hotel_bot_env/
