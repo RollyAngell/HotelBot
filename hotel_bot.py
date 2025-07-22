@@ -79,13 +79,7 @@ class HotelBot:
         
         update.message.reply_text(
             "📷 *Nuevo Cliente*\n\n"
-            "Por favor, envía una foto del DNI del cliente para comenzar el registro.\n\n"
-            "✅ *Consejos para mejores resultados:*\n"
-            "• La foto puede ser tomada desde cualquier ángulo\n"
-            "• No importa si está ligeramente inclinada\n"
-            "• Asegúrate de que el texto sea visible\n"
-            "• El bot automáticamente mejorará la imagen\n"
-            "• Si la primera foto no funciona, puedes intentar con otra",
+            "Por favor, envía una foto del DNI del cliente para comenzar el registro.",
             parse_mode=ParseMode.MARKDOWN
         )
     
@@ -107,11 +101,7 @@ class HotelBot:
         
         # Mostrar mensaje de procesamiento
         processing_msg = update.message.reply_text(
-            "⏳ *Procesando imagen del DNI...*\n\n"
-            "🔍 Analizando imagen con IA avanzada\n"
-            "🖼️ Mejorando calidad automáticamente\n"
-            "📝 Extrayendo datos del documento\n\n"
-            "Esto puede tomar unos segundos.",
+            "⏳ *Procesando imagen del DNI...*",
             parse_mode=ParseMode.MARKDOWN
         )
         
@@ -260,8 +250,7 @@ class HotelBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         query.edit_message_text(
-            "⏰ *¿Cuántas horas usará el cliente?*\n\n"
-            "Selecciona la duración de la estancia:",
+            "⏰ *¿Cuántas horas usará el cliente?*",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
@@ -301,8 +290,7 @@ class HotelBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         query.edit_message_text(
-            "💰 *¿Precio cobrado?*\n\n"
-            "Selecciona el precio cobrado al cliente:",
+            "💰 *¿Precio cobrado?*",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
@@ -334,8 +322,7 @@ class HotelBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         query.edit_message_text(
-            "💳 *¿Forma de pago?*\n\n"
-            "Selecciona la forma de pago utilizada:",
+            "💳 *¿Forma de pago?*",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
@@ -385,8 +372,7 @@ class HotelBot:
         
         query.edit_message_text(
             "🏠 *¿Qué habitación usará el cliente?*\n\n"
-            "🟢 = Disponible | 🔴 = Ocupada\n\n"
-            "Selecciona la habitación:",
+            "🟢 = Disponible | 🔴 = Ocupada",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
@@ -421,8 +407,7 @@ class HotelBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         query.edit_message_text(
-            "📝 *¿Alguna observación?*\n\n"
-            "Puedes agregar comentarios adicionales sobre el cliente o la reserva:",
+            "📝 *¿Alguna observación?*",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )

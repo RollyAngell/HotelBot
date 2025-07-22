@@ -148,34 +148,71 @@ python hotel_bot.py
    - Observaciones
 5. **Confirmar y guardar**: Los datos se guardan en Google Sheets y la foto en Google Drive
 
-## 🧪 Guía de Pruebas
+## 🧪 GUÍA COMPLETA DE PRUEBAS
 
-### Pasos para Probar el Bot
+### **OPCIÓN 1: Pruebas Automatizadas (Recomendado)** 🤖
 
-#### 1. **Configurar Google Cloud** 🌐
+```bash
+# Ejecutar todas las pruebas de configuración
+python test_bot.py
 
-1. **Ir a Google Cloud Console**:
-   - Visita: https://console.cloud.google.com/
-   - Crea un nuevo proyecto o selecciona uno existente
+# Ejecutar pruebas funcionales completas (incluye OCR real)
+python test_bot_functional.py
 
-2. **Habilitar APIs necesarias**:
-   - Ve a "APIs & Services" > "Library"
-   - Busca y habilita:
-     - Google Cloud Vision API
-     - Google Sheets API
-     - Google Drive API
+# Interfaz interactiva para probar paso a paso
+python test_interactive.py
+```
 
-3. **Crear cuenta de servicio**:
-   - Ve a "IAM & Admin" > "Service Accounts"
-   - Clic en "Create Service Account"
-   - Nombre: `hotel-bot-service`
-   - Rol: `Editor`
-   - Clic en "Create Key" > JSON
-   - Descargar el archivo JSON
+### **OPCIÓN 2: Pruebas Manuales en Telegram** 📱
 
-4. **Guardar credenciales**:
-   - Renombrar el archivo descargado como `hotel-bot-credentials.json`
-   - Copiarlo en la carpeta `credentials/`
+#### **Preparación Rápida:**
+1. **Configurar APIs** (5 min):
+   - OpenAI: https://platform.openai.com/api-keys
+   - Google Cloud: https://console.cloud.google.com/
+
+2. **Configurar .env** (2 min):
+   ```bash
+   cp config_example.env .env
+   # Editar con tus datos
+   ```
+
+3. **Iniciar bot** (30 seg):
+   ```bash
+   python start_bot.py
+   ```
+
+#### **Flujo de Prueba Completo (10 min):**
+1. **Buscar tu bot** en Telegram
+2. **Enviar**: `/start` → Ver mensaje de bienvenida
+3. **Enviar**: `/nuevo` → Subir foto de DNI → Completar formulario  
+4. **Verificar**: Google Sheets (nueva fila) + Google Drive (nueva foto)
+5. **Probar**: `/resumen`, `/habitaciones`, `/ayuda`
+
+---
+
+## 📋 CONFIGURACIÓN PASO A PASO
+
+### **1. Configurar OpenAI** 🤖
+1. **Ir a**: https://platform.openai.com/api-keys
+2. **Crear**: "Create new secret key" 
+3. **Copiar**: `sk-proj-...` para el .env
+
+### **2. Configurar Google Cloud** ☁️
+
+#### **2.1 Habilitar APIs**
+1. **Google Cloud Console**: https://console.cloud.google.com/
+2. **Crear proyecto** o usar existente
+3. **Habilitar APIs**:
+   - Google Cloud Vision API ✅  
+   - Google Sheets API ✅
+   - Google Drive API ✅
+
+#### **2.2 Crear Service Account**
+1. **IAM & Admin** → Service Accounts
+2. **Create Service Account**: "hotel-bot-service"
+3. **Role**: "Editor"
+4. **Create Key** → JSON
+5. **Guardar** como `credentials/hotel-bot-service-account.json`
 
 #### 2. **Crear Bot en Telegram** 🤖
 

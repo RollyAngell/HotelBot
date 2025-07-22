@@ -137,3 +137,9 @@ hotel_bot_env/
 __pycache__/
 *.pyc
 .env
+
+# Resultados de tests
+*test_results*.json
+*functional_test_results*.json
+test_results_*.json
+functional_test_results_*.json
